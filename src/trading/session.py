@@ -357,11 +357,41 @@ class TradingSession:
         logger.info(f"  Actual Gain: ${stats.total_value - self.portfolio.initial_capital:+,.2f}")
         logger.info(f"  P&L + Fees: ${stats.total_pnl - self.portfolio.fees_paid:+,.2f}")
 
+        # Strategy Performance Breakdown
+        if len(self.strategies) > 1:
+            logger.info(f"\nStrategy Performance Breakdown:")
+            for strategy_name in self.strategies.keys():
+                strategy_positions = self.portfolio.get_strategy_positions(strategy_name)
+                closed_positions = [pos for pos in self.portfolio.closed_positions if pos.strategy_id == strategy_name]
+
+                # Calculate strategy-specific stats
+                strategy_trades = len(closed_positions)
+                strategy_realized_pnl = sum(pos.realized_pnl for pos in closed_positions)
+                strategy_unrealized_pnl = sum(pos.unrealized_pnl for pos in strategy_positions)
+                strategy_total_pnl = strategy_realized_pnl + strategy_unrealized_pnl
+
+                # Win rate calculation
+                winning_trades = sum(1 for pos in closed_positions if pos.realized_pnl > 0)
+                win_rate = winning_trades / strategy_trades if strategy_trades > 0 else 0.0
+
+                # Strategy allocation
+                allocation = self.portfolio.strategy_allocations.get(strategy_name, 1.0)
+                allocated_capital = self.portfolio.initial_capital * allocation
+
+                logger.info(f"  {strategy_name}:")
+                logger.info(f"    Allocation: ${allocated_capital:,.2f} ({allocation:.0%})")
+                logger.info(f"    Total P&L: ${strategy_total_pnl:+,.2f}")
+                logger.info(f"    Return: {(strategy_total_pnl / allocated_capital) * 100:+.2f}%")
+                logger.info(f"    Trades: {strategy_trades}")
+                if strategy_trades > 0:
+                    logger.info(f"    Win Rate: {win_rate:.1%}")
+                logger.info(f"    Open Positions: {len(strategy_positions)}")
+
         # Open positions
         if stats.num_positions > 0:
             logger.info(f"\nOpen Positions: {stats.num_positions}")
             for symbol, position in self.portfolio.get_all_positions().items():
-                logger.info(f"  {symbol}: ${position.size:.2f} @ ${position.entry_price:.2f}")
+                logger.info(f"  {symbol}: ${position.size:.2f} @ ${position.entry_price:.2f} (Strategy: {position.strategy_id})")
 
         # Session info
         runtime = self.iteration_count
